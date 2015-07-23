@@ -610,6 +610,21 @@ static void device_qual(struct usb_composite_dev *cdev)
 	qual->bRESERVED = 0;
 }
 
+static unsigned unconfigured_vbus_draw(struct usb_composite_dev *cdev)
+{
+	struct usb_gadget *g = cdev->gadget;
+	unsigned power;
+
+	if (gadget_is_otg(g))
+		power = USB_OTG_UNCONF_STATE_VBUS_MAX_DRAW;
+	else if (g->speed == USB_SPEED_SUPER)
+		power = USB3_UNCONF_STATE_VBUS_MAX_DRAW;
+	else
+		power = USB2_UNCONF_STATE_VBUS_MAX_DRAW;
+
+	return power;
+}
+
 /*-------------------------------------------------------------------------*/
 
 static void reset_config(struct usb_composite_dev *cdev)
@@ -634,7 +649,7 @@ static int set_config(struct usb_composite_dev *cdev,
 	struct usb_gadget	*gadget = cdev->gadget;
 	struct usb_configuration *c = NULL;
 	int			result = -EINVAL;
-	unsigned		power = gadget_is_otg(gadget) ? 8 : 100;
+	unsigned		power = unconfigured_vbus_draw(cdev);
 	int			tmp;
 
 	if (number) {
@@ -1829,6 +1844,15 @@ done:
 	return value;
 }
 
+void composite_reset(struct usb_gadget *gadget)
+{
+	struct usb_composite_dev *cdev = get_gadget_data(gadget);
+
+	DBG(cdev, "reset\n");
+	usb_gadget_vbus_draw(gadget, unconfigured_vbus_draw(cdev));
+	composite_disconnect(gadget);
+}
+
 void composite_disconnect(struct usb_gadget *gadget)
 {
 	struct usb_composite_dev	*cdev = get_gadget_data(gadget);
@@ -2095,7 +2119,7 @@ void composite_suspend(struct usb_gadget *gadget)
 
 	cdev->suspended = 1;
 
-	usb_gadget_vbus_draw(gadget, 2);
+	usb_gadget_vbus_draw(gadget, USB_SUSPEND_STATE_VBUS_MAX_DRAW);
 }
 
 void composite_resume(struct usb_gadget *gadget)
@@ -2117,10 +2141,11 @@ void composite_resume(struct usb_gadget *gadget)
 		}
 
 		maxpower = cdev->config->MaxPower;
-
-		usb_gadget_vbus_draw(gadget, maxpower ?
-			maxpower : CONFIG_USB_GADGET_VBUS_DRAW);
-	}
+		if (!maxpower)
+			maxpower = CONFIG_USB_GADGET_VBUS_DRAW;
+	} else
+		maxpower = unconfigured_vbus_draw(cdev);
+	usb_gadget_vbus_draw(gadget, maxpower);
 
 	cdev->suspended = 0;
 }
@@ -2132,7 +2157,7 @@ static const struct usb_gadget_driver composite_driver_template = {
 	.unbind		= composite_unbind,
 
 	.setup		= composite_setup,
-	.reset		= composite_disconnect,
+	.reset		= composite_reset,
 	.disconnect	= composite_disconnect,
 
 	.suspend	= composite_suspend,

@@ -996,4 +996,13 @@ struct usb_set_sel_req {
  */
 #define USB_SELF_POWER_VBUS_MAX_DRAW		100
 
+/*
+ * USB2 compliance requires that un-configured current draw less than 100mA,
+ * while USB3 requires it <= 150mA, and OTG device requires it <= 2.5mA.
+ */
+#define USB2_UNCONF_STATE_VBUS_MAX_DRAW		100
+#define USB3_UNCONF_STATE_VBUS_MAX_DRAW		150
+#define USB_OTG_UNCONF_STATE_VBUS_MAX_DRAW	2
+#define USB_SUSPEND_STATE_VBUS_MAX_DRAW		2
+
 #endif /* _UAPI__LINUX_USB_CH9_H */
