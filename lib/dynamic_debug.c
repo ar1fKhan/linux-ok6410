@@ -78,6 +78,7 @@ static inline const char *trim_prefix(const char *path)
 
 static struct { unsigned flag:8; char opt_char; } opt_array[] = {
 	{ _DPRINTK_FLAGS_PRINT, 'p' },
+	{ _DPRINTK_FLAGS_TRACE, 'T' },
 	{ _DPRINTK_FLAGS_INCL_MODNAME, 'm' },
 	{ _DPRINTK_FLAGS_INCL_FUNCNAME, 'f' },
 	{ _DPRINTK_FLAGS_INCL_LINENO, 'l' },
@@ -557,6 +558,27 @@ void __dynamic_pr_debug(struct _ddebug *descriptor, const char *fmt, ...)
 }
 EXPORT_SYMBOL(__dynamic_pr_debug);
 
+void __dynamic_pr_trace(unsigned long ip, struct _ddebug *descriptor,
+			const char *fmt, ...)
+{
+	va_list args;
+	struct va_format vaf;
+	char buf[PREFIX_SIZE];
+
+	BUG_ON(!descriptor);
+	BUG_ON(!fmt);
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	__trace_printk(ip, "%s%pV", dynamic_emit_prefix(descriptor, buf), &vaf);
+
+	va_end(args);
+}
+EXPORT_SYMBOL(__dynamic_pr_trace);
+
 void __dynamic_dev_dbg(struct _ddebug *descriptor,
 		      const struct device *dev, const char *fmt, ...)
 {
@@ -585,6 +607,33 @@ void __dynamic_dev_dbg(struct _ddebug *descriptor,
 	va_end(args);
 }
 EXPORT_SYMBOL(__dynamic_dev_dbg);
+
+void __dynamic_dev_trace(unsigned long ip, struct _ddebug *descriptor,
+		      const struct device *dev, const char *fmt, ...)
+{
+	va_list args;
+	struct va_format vaf;
+
+	BUG_ON(!descriptor);
+	BUG_ON(!fmt);
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	if (dev) {
+		char buf[PREFIX_SIZE];
+		__trace_printk(ip, "%s%s %s: %pV",
+				 dynamic_emit_prefix(descriptor, buf),
+				 dev_driver_string(dev), dev_name(dev),
+				 &vaf);
+	} else
+		__trace_printk(ip, "(NULL device *): %pV", &vaf);
+
+	va_end(args);
+}
+EXPORT_SYMBOL(__dynamic_dev_trace);
 
 #ifdef CONFIG_NET
 
@@ -622,6 +671,38 @@ void __dynamic_netdev_dbg(struct _ddebug *descriptor,
 	va_end(args);
 }
 EXPORT_SYMBOL(__dynamic_netdev_dbg);
+
+void __dynamic_netdev_trace(unsigned long ip, struct _ddebug *descriptor,
+		      const struct net_device *dev, const char *fmt, ...)
+{
+	va_list args;
+	struct va_format vaf;
+
+	BUG_ON(!descriptor);
+	BUG_ON(!fmt);
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	if (dev && dev->dev.parent) {
+		char buf[PREFIX_SIZE];
+		__trace_printk(ip, "%s%s %s %s%s: %pV",
+				 dynamic_emit_prefix(descriptor, buf),
+				 dev_driver_string(dev->dev.parent),
+				 dev_name(dev->dev.parent),
+				 netdev_name(dev), netdev_reg_state(dev),
+				 &vaf);
+	} else if (dev)
+		__trace_printk(ip, "%s%s: %pV", netdev_name(dev),
+				 netdev_reg_state(dev), &vaf);
+	else
+		__trace_printk(ip, "(NULL device *): %pV", &vaf);
+
+	va_end(args);
+}
+EXPORT_SYMBOL(__dynamic_netdev_trace);
 
 #endif
 

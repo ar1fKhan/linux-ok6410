@@ -1108,20 +1108,65 @@ extern __printf(3, 4)
 void dev_printk(const char *level, const struct device *dev,
 		const char *fmt, ...);
 extern __printf(2, 3)
-void dev_emerg(const struct device *dev, const char *fmt, ...);
+void _dev_emerg(const struct device *dev, const char *fmt, ...);
 extern __printf(2, 3)
-void dev_alert(const struct device *dev, const char *fmt, ...);
+void _dev_alert(const struct device *dev, const char *fmt, ...);
 extern __printf(2, 3)
-void dev_crit(const struct device *dev, const char *fmt, ...);
+void _dev_crit(const struct device *dev, const char *fmt, ...);
 extern __printf(2, 3)
-void dev_err(const struct device *dev, const char *fmt, ...);
+void _dev_err(const struct device *dev, const char *fmt, ...);
 extern __printf(2, 3)
-void dev_warn(const struct device *dev, const char *fmt, ...);
+void _dev_warn(const struct device *dev, const char *fmt, ...);
 extern __printf(2, 3)
-void dev_notice(const struct device *dev, const char *fmt, ...);
+void _dev_notice(const struct device *dev, const char *fmt, ...);
 extern __printf(2, 3)
 void _dev_info(const struct device *dev, const char *fmt, ...);
 
+#if defined(CONFIG_DYNAMIC_DEBUG)
+#define dev_emerg(dev, fmt, ...)			\
+({							\
+	_dev_emerg(dev, fmt, ##__VA_ARGS__); 	\
+	dynamic_dev_trace(dev, fmt, ##__VA_ARGS__);	\
+})
+#define dev_alert(dev, fmt, ...)			\
+({							\
+	_dev_alert(dev, fmt, ##__VA_ARGS__); 	\
+	dynamic_dev_trace(dev, fmt, ##__VA_ARGS__);	\
+})
+#define dev_crit(dev, fmt, ...)			\
+({							\
+	_dev_crit(dev, fmt, ##__VA_ARGS__); 		\
+	dynamic_dev_trace(dev, fmt, ##__VA_ARGS__);	\
+})
+#define dev_err(dev, fmt, ...)				\
+({							\
+	_dev_err(dev, fmt, ##__VA_ARGS__); 		\
+	dynamic_dev_trace(dev, fmt, ##__VA_ARGS__);	\
+})
+#define dev_warn(dev, fmt, ...)			\
+({							\
+	_dev_warn(dev, fmt, ##__VA_ARGS__);		\
+	dynamic_dev_trace(dev, fmt, ##__VA_ARGS__);	\
+})
+#define dev_notice(dev, fmt, ...)			\
+({							\
+	_dev_notice(dev, fmt, ##__VA_ARGS__); 	\
+	dynamic_dev_trace(dev, fmt, ##__VA_ARGS__);	\
+})
+#define dev_info(dev, fmt, ...)			\
+({							\
+	_dev_info(dev, fmt, ##__VA_ARGS__);		\
+	dynamic_dev_trace(dev, fmt, ##__VA_ARGS__);	\
+})
+#else
+#define dev_emerg	_dev_emerg
+#define dev_alert	_dev_alert
+#define dev_crit	_dev_crit
+#define dev_err		_dev_err
+#define dev_warn	_dev_warn
+#define dev_notice	_dev_notice
+#define dev_info	_dev_info
+#endif
 #else
 
 static inline __printf(3, 0)
@@ -1159,19 +1204,19 @@ static inline __printf(2, 3)
 void dev_notice(const struct device *dev, const char *fmt, ...)
 {}
 static inline __printf(2, 3)
-void _dev_info(const struct device *dev, const char *fmt, ...)
+void dev_info(const struct device *dev, const char *fmt, ...)
 {}
 
 #endif
 
-/*
- * Stupid hackaround for existing uses of non-printk uses dev_info
- *
- * Note that the definition of dev_info below is actually _dev_info
- * and a macro is used to avoid redefining dev_info
- */
-
-#define dev_info(dev, fmt, arg...) _dev_info(dev, fmt, ##arg)
+#define dev_trace(dev, fmt, args...)				\
+({								\
+	if (dev)						\
+		trace_printk("%s %s:" fmt, dev_driver_string(dev), \
+			dev_name(dev), ##args);			\
+	else							\
+		trace_printk("(NULL device *):" fmt, ##args);	\
+})
 
 #if defined(CONFIG_DYNAMIC_DEBUG)
 #define dev_dbg(dev, format, ...)		     \
@@ -1258,6 +1303,10 @@ do {									\
 	if (unlikely(descriptor.flags & _DPRINTK_FLAGS_PRINT) &&	\
 	    __ratelimit(&_rs))						\
 		__dynamic_dev_dbg(&descriptor, dev, fmt,		\
+				  ##__VA_ARGS__);			\
+	if (unlikely(descriptor.flags & _DPRINTK_FLAGS_TRACE) &&	\
+	    __ratelimit(&_rs))						\
+		__dynamic_dev_trace(_THIS_IP_, &descriptor, dev, fmt,	\
 				  ##__VA_ARGS__);			\
 } while (0)
 #elif defined(DEBUG)

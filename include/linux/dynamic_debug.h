@@ -1,6 +1,8 @@
 #ifndef _DYNAMIC_DEBUG_H
 #define _DYNAMIC_DEBUG_H
 
+#include <linux/kernel.h>
+
 /*
  * An instance of this structure is created in a special
  * ELF section at every dynamic debug callsite.  At runtime,
@@ -27,6 +29,7 @@ struct _ddebug {
 #define _DPRINTK_FLAGS_INCL_FUNCNAME	(1<<2)
 #define _DPRINTK_FLAGS_INCL_LINENO	(1<<3)
 #define _DPRINTK_FLAGS_INCL_TID		(1<<4)
+#define _DPRINTK_FLAGS_TRACE		(1<<5)
 #if defined DEBUG
 #define _DPRINTK_FLAGS_DEFAULT _DPRINTK_FLAGS_PRINT
 #else
@@ -43,6 +46,9 @@ int ddebug_add_module(struct _ddebug *tab, unsigned int n,
 extern int ddebug_remove_module(const char *mod_name);
 extern __printf(2, 3)
 void __dynamic_pr_debug(struct _ddebug *descriptor, const char *fmt, ...);
+extern __printf(3, 4)
+void __dynamic_pr_trace(unsigned long ip, struct _ddebug *descriptor,
+			const char *fmt, ...);
 
 extern int ddebug_dyndbg_module_param_cb(char *param, char *val,
 					const char *modname);
@@ -52,6 +58,9 @@ struct device;
 extern __printf(3, 4)
 void __dynamic_dev_dbg(struct _ddebug *descriptor, const struct device *dev,
 		       const char *fmt, ...);
+extern __printf(4, 5)
+void __dynamic_dev_trace(unsigned long ip, struct _ddebug *descriptor,
+		      const struct device *dev, const char *fmt, ...);
 
 struct net_device;
 
@@ -59,6 +68,10 @@ extern __printf(3, 4)
 void __dynamic_netdev_dbg(struct _ddebug *descriptor,
 			  const struct net_device *dev,
 			  const char *fmt, ...);
+extern __printf(4, 5)
+void __dynamic_netdev_trace(unsigned long ip, struct _ddebug *descriptor,
+			const struct net_device *dev, const char *fmt, ...);
+
 
 #define DEFINE_DYNAMIC_DEBUG_METADATA(name, fmt)		\
 	static struct _ddebug  __aligned(8)			\
@@ -77,6 +90,19 @@ do {								\
 	if (unlikely(descriptor.flags & _DPRINTK_FLAGS_PRINT))	\
 		__dynamic_pr_debug(&descriptor, pr_fmt(fmt),	\
 				   ##__VA_ARGS__);		\
+	if (unlikely(descriptor.flags & _DPRINTK_FLAGS_TRACE))	\
+		__dynamic_pr_trace(_THIS_IP_, &descriptor,	\
+				   fmt, ##__VA_ARGS__);		\
+} while (0)
+
+/* for non-debug level only */
+#define dynamic_pr_trace_level(level, fmt, ...)		\
+do {								\
+	DEFINE_DYNAMIC_DEBUG_METADATA(descriptor, fmt); 	\
+	printk(level pr_fmt(fmt), ##__VA_ARGS__);		\
+	if (unlikely(descriptor.flags & _DPRINTK_FLAGS_TRACE))	\
+		__dynamic_pr_trace(_THIS_IP_, &descriptor,	\
+				   fmt, ##__VA_ARGS__); 	\
 } while (0)
 
 #define dynamic_dev_dbg(dev, fmt, ...)				\
@@ -85,6 +111,17 @@ do {								\
 	if (unlikely(descriptor.flags & _DPRINTK_FLAGS_PRINT))	\
 		__dynamic_dev_dbg(&descriptor, dev, fmt,	\
 				  ##__VA_ARGS__);		\
+	if (unlikely(descriptor.flags & _DPRINTK_FLAGS_TRACE))	\
+		__dynamic_dev_trace(_THIS_IP_, &descriptor, dev,\
+				  fmt, ##__VA_ARGS__);		\
+} while (0)
+
+#define dynamic_dev_trace(dev, fmt, ...)			\
+do {								\
+	DEFINE_DYNAMIC_DEBUG_METADATA(descriptor, fmt); 	\
+	if (unlikely(descriptor.flags & _DPRINTK_FLAGS_TRACE))	\
+		__dynamic_dev_trace(_THIS_IP_, &descriptor, dev,\
+				  fmt, ##__VA_ARGS__);		\
 } while (0)
 
 #define dynamic_netdev_dbg(dev, fmt, ...)			\
@@ -93,7 +130,19 @@ do {								\
 	if (unlikely(descriptor.flags & _DPRINTK_FLAGS_PRINT))	\
 		__dynamic_netdev_dbg(&descriptor, dev, fmt,	\
 				     ##__VA_ARGS__);		\
+	if (unlikely(descriptor.flags & _DPRINTK_FLAGS_TRACE))	\
+		__dynamic_netdev_trace(_THIS_IP_, &descriptor, 	\
+				dev, fmt, ##__VA_ARGS__);	\
 } while (0)
+
+#define dynamic_netdev_trace(dev, fmt, ...)			\
+do {								\
+	DEFINE_DYNAMIC_DEBUG_METADATA(descriptor, fmt); 	\
+	if (unlikely(descriptor.flags & _DPRINTK_FLAGS_TRACE))	\
+		__dynamic_netdev_trace(_THIS_IP_, &descriptor,	\
+				dev, fmt, ##__VA_ARGS__);	\
+} while (0)
+
 
 #define dynamic_hex_dump(prefix_str, prefix_type, rowsize,	\
 			 groupsize, buf, len, ascii)		\

@@ -242,6 +242,23 @@ extern asmlinkage void dump_stack(void) __cold;
  * and other debug macros are compiled out unless either DEBUG is defined
  * or CONFIG_DYNAMIC_DEBUG is set.
  */
+#if defined(CONFIG_DYNAMIC_DEBUG)
+#define pr_emerg(fmt, ...) \
+	dynamic_pr_trace_level(KERN_EMERG, fmt, ##__VA_ARGS__)
+#define pr_alert(fmt, ...) \
+	dynamic_pr_trace_level(KERN_ALERT, fmt, ##__VA_ARGS__)
+#define pr_crit(fmt, ...) \
+	dynamic_pr_trace_level(KERN_CRIT, fmt, ##__VA_ARGS__)
+#define pr_err(fmt, ...) \
+	dynamic_pr_trace_level(KERN_ERR, fmt, ##__VA_ARGS__)
+#define pr_warning(fmt, ...) \
+	dynamic_pr_trace_level(KERN_WARNING, fmt, ##__VA_ARGS__)
+#define pr_warn pr_warning
+#define pr_notice(fmt, ...) \
+	dynamic_pr_trace_level(KERN_NOTICE, fmt, ##__VA_ARGS__)
+#define pr_info(fmt, ...) \
+	dynamic_pr_trace_level(KERN_INFO, fmt, ##__VA_ARGS__)
+#else
 #define pr_emerg(fmt, ...) \
 	printk(KERN_EMERG pr_fmt(fmt), ##__VA_ARGS__)
 #define pr_alert(fmt, ...) \
@@ -257,6 +274,7 @@ extern asmlinkage void dump_stack(void) __cold;
 	printk(KERN_NOTICE pr_fmt(fmt), ##__VA_ARGS__)
 #define pr_info(fmt, ...) \
 	printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__)
+#endif
 /*
  * Like KERN_CONT, pr_cont() should only be used when continuing
  * a line with no newline ('\n') enclosed. Otherwise it defaults
