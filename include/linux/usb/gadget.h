@@ -307,6 +307,21 @@ static inline int usb_ep_disable(struct usb_ep *ep)
 	return 0;
 }
 
+#ifdef CONFIG_DEBUG_OBJECTS_USB_REQUEST
+
+static struct debug_obj_descr usb_request_debug_descr = {
+	.name		= "usb_request",
+	.debug_hint	= usb_request_debug_hint,
+	.fixup_init	= usb_request_fixup_init,
+	.fixup_activate	= usb_request_fixup_activate,
+	.fixup_free	= usb_request_fixup_free,
+};
+
+#else
+static inline void debug_usb_request_activate(struct usb_request  *request) { }
+static inline void debug_usb_request_deactivate(struct usb_request *request) { }
+#endif
+
 /**
  * usb_ep_alloc_request - allocate a request object to use with this endpoint
  * @ep:the endpoint to be used with with the request
