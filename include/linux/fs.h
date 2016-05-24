@@ -2352,14 +2352,6 @@ extern struct super_block *freeze_bdev(struct block_device *);
 extern void emergency_thaw_all(void);
 extern int thaw_bdev(struct block_device *bdev, struct super_block *sb);
 extern int fsync_bdev(struct block_device *);
-#ifdef CONFIG_FS_DAX
-extern bool blkdev_dax_capable(struct block_device *bdev);
-#else
-static inline bool blkdev_dax_capable(struct block_device *bdev)
-{
-	return false;
-}
-#endif
 
 extern struct super_block *blockdev_superblock;
 
@@ -2427,6 +2419,8 @@ static inline void bd_unlink_disk_holder(struct block_device *bdev,
 
 /* fs/char_dev.c */
 #define CHRDEV_MAJOR_HASH_SIZE	255
+/* Marks the bottom of the first segment of free char majors */
+#define CHRDEV_MAJOR_DYN_END 234
 extern int alloc_chrdev_region(dev_t *, unsigned, unsigned, const char *);
 extern int register_chrdev_region(dev_t, unsigned, const char *);
 extern int __register_chrdev(unsigned int major, unsigned int baseminor,
