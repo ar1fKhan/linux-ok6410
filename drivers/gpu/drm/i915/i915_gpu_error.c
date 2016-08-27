@@ -321,6 +321,16 @@ static void print_error_obj(struct drm_i915_error_state_buf *m,
 	}
 }
 
+static void disasm_error_obj(struct intel_engine_cs *engine,
+				struct drm_i915_error_state_buf *m,
+			    struct drm_i915_error_object *obj)
+{
+	int page;
+
+	for (page = 0; page < obj->page_count; page++)
+		i915_disasm_cmd_buffer(engine, m, obj->pages[page], PAGE_SIZE/4);
+}
+
 static void err_print_capabilities(struct drm_i915_error_state_buf *m,
 				   const struct intel_device_info *info)
 {
@@ -504,7 +514,7 @@ int i915_error_state_to_str(struct drm_i915_error_state_buf *m,
 			err_printf(m, "%s --- ringbuffer = 0x%08x\n",
 				   dev_priv->engine[i].name,
 				   lower_32_bits(obj->gtt_offset));
-			print_error_obj(m, obj);
+			disasm_error_obj(&dev_priv->engine[ee->engine_id], m, obj);
 		}
 
 		if ((obj = ee->hws_page)) {

@@ -2474,6 +2474,7 @@ struct drm_i915_cmd_descriptor {
 	 * also include type, subtype, and/or subop fields.
 	 */
 	struct {
+		char *name;
 		u32 value;
 		u32 mask;
 	} cmd;
@@ -3551,6 +3552,9 @@ int intel_engine_cmd_parser(struct intel_engine_cs *engine,
 			    u32 batch_start_offset,
 			    u32 batch_len,
 			    bool is_master);
+void i915_disasm_cmd_buffer(struct intel_engine_cs *engine,
+				struct drm_i915_error_state_buf *m,
+				u32 *buf, u32 sz);
 
 /* i915_suspend.c */
 extern int i915_save_state(struct drm_device *dev);

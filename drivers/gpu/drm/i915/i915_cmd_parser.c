@@ -95,7 +95,7 @@
 #define CMD(op, opm, f, lm, fl, ...)				\
 	{							\
 		.flags = (fl) | ((f) ? CMD_DESC_FIXED : 0),	\
-		.cmd = { (op), ~0u << (opm) },			\
+		.cmd = { #op, (op), ~0u << (opm) },			\
 		.length = { (lm) },				\
 		__VA_ARGS__					\
 	}
@@ -1334,4 +1334,50 @@ int i915_cmd_parser_get_version(struct drm_i915_private *dev_priv)
 	 * 7. Allow MI_LOAD_REGISTER_REG between whitelisted registers.
 	 */
 	return 7;
+}
+
+void i915_disasm_cmd_buffer(struct intel_engine_cs *engine,
+				struct drm_i915_error_state_buf *m,
+				u32 *buf, u32 sz_dword)
+{
+	struct drm_i915_cmd_descriptor default_desc = noop_desc;
+	const struct drm_i915_cmd_descriptor *desc = &default_desc;
+	u32 *cmd = buf;
+	u32 *buf_end = buf + sz_dword;
+
+	while (cmd < buf_end) {
+		u32 offset = (u32)((char *)cmd - (char *)buf);
+		u32 length;
+
+		i915_error_printf(m, "%08x :  %08x", offset, *cmd);
+
+		desc = find_cmd(engine, *cmd, desc, &default_desc);
+		if (!desc) {
+			i915_error_printf(m, " %s\n", "Unrecognized command");
+			break;
+		}
+
+		if (desc->flags & CMD_DESC_FIXED)
+			length = desc->length.fixed;
+		else
+			length = ((*cmd & desc->length.mask) + LENGTH_BIAS);
+
+		if ((buf_end - cmd) < length) {
+			i915_error_printf(m, " %s\n", "Command length exceeds buffer");
+			break;
+		}
+
+		while (length--) {
+			cmd++;
+			i915_error_printf(m, " %08x", *cmd);
+		}
+		i915_error_printf(m, "\t%s\n", desc->cmd.name);
+	}
+
+	while (cmd < buf_end) {
+		u32 offset = (u32)((char *)cmd - (char *)buf);
+
+		i915_error_printf(m, "%08x :  %08x\n", offset, *cmd);
+		cmd++;
+	}
 }
