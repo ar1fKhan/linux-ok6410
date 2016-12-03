@@ -55,7 +55,7 @@ read_pll_src(struct nv50_clk *clk, u32 base)
 	struct nvkm_device *device = subdev->device;
 	u32 coef, ref = nvkm_clk_read(&clk->base, nv_clk_src_crystal);
 	u32 rsel = nvkm_rd32(device, 0x00e18c);
-	int P, N, M, id;
+	int P, N, M, id = 0;
 
 	switch (device->chipset) {
 	case 0x50:

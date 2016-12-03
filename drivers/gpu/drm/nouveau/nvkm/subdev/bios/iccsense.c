@@ -59,7 +59,7 @@ int
 nvbios_iccsense_parse(struct nvkm_bios *bios, struct nvbios_iccsense *iccsense)
 {
 	struct nvkm_subdev *subdev = &bios->subdev;
-	u8 ver, hdr, cnt, len, i;
+	u8 ver = 0, hdr = 0, cnt = 0, len = 0, i;
 	u16 table, entry;
 
 	table = nvbios_iccsense_table(bios, &ver, &hdr, &cnt, &len);

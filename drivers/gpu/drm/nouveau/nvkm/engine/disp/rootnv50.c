@@ -78,7 +78,7 @@ nv50_disp_root_mthd_(struct nvkm_object *object, u32 mthd, void *data, u32 size)
 	const struct nv50_disp_func *func = disp->func;
 	struct nvkm_output *outp = NULL;
 	struct nvkm_output *temp;
-	u16 type, mask = 0;
+	u16 type = 0, mask = 0;
 	int head, ret = -ENOSYS;
 
 	if (mthd != NV50_DISP_MTHD)

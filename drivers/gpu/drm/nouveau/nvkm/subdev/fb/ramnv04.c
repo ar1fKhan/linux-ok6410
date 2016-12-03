@@ -33,7 +33,7 @@ nv04_ram_new(struct nvkm_fb *fb, struct nvkm_ram **pram)
 {
 	struct nvkm_device *device = fb->subdev.device;
 	u32 boot0 = nvkm_rd32(device, NV04_PFB_BOOT_0);
-	u64 size;
+	u64 uninitialized_var(size);
 	enum nvkm_ram_type type;
 
 	if (boot0 & 0x00000100) {
