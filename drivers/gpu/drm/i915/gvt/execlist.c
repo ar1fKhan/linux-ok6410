@@ -568,20 +568,19 @@ err:
 	return ret;
 }
 
-#define RING_CTX_OFF(x) \
-	offsetof(struct execlist_ring_context, x)
+#define read_guest_context(vgpu, context_gpa, field, dest, size) \
+	intel_gvt_hypervisor_read_gpa(vgpu,			 \
+		context_gpa + offsetof(struct execlist_ring_context, field), \
+		dest, size)
 
 static void read_guest_pdps(struct intel_vgpu *vgpu,
-		u64 ring_context_gpa, u32 pdp[8])
+		u64 context_gpa, u32 pdp[8])
 {
-	u64 gpa;
 	int i;
 
-	gpa = ring_context_gpa + RING_CTX_OFF(pdp3_UDW.val);
-
 	for (i = 0; i < 8; i++)
-		intel_gvt_hypervisor_read_gpa(vgpu,
-				gpa + i * 8, &pdp[7 - i], 4);
+		read_guest_context(vgpu, context_gpa + i * 8,
+				   pdp3_UDW.val, &pdp[7 - i], 4);
 }
 
 static int prepare_mm(struct intel_vgpu_workload *workload)
@@ -639,11 +638,8 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 		return -EINVAL;
 	}
 
-	intel_gvt_hypervisor_read_gpa(vgpu, ring_context_gpa +
-			RING_CTX_OFF(ring_header.val), &head, 4);
-
-	intel_gvt_hypervisor_read_gpa(vgpu, ring_context_gpa +
-			RING_CTX_OFF(ring_tail.val), &tail, 4);
+	read_guest_context(vgpu, ring_context_gpa, ring_header.val, &head, 4);
+	read_guest_context(vgpu, ring_context_gpa, ring_tail.val, &tail, 4);
 
 	head &= RB_HEAD_OFF_MASK;
 	tail &= RB_TAIL_OFF_MASK;
@@ -666,12 +662,9 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 		return -ENOMEM;
 
 	/* record some ring buffer register values for scan and shadow */
-	intel_gvt_hypervisor_read_gpa(vgpu, ring_context_gpa +
-			RING_CTX_OFF(rb_start.val), &start, 4);
-	intel_gvt_hypervisor_read_gpa(vgpu, ring_context_gpa +
-			RING_CTX_OFF(rb_ctrl.val), &ctl, 4);
-	intel_gvt_hypervisor_read_gpa(vgpu, ring_context_gpa +
-			RING_CTX_OFF(ctx_ctrl.val), &ctx_ctl, 4);
+	read_guest_context(vgpu, ring_context_gpa, rb_start.val, &start, 4);
+	read_guest_context(vgpu, ring_context_gpa, rb_ctrl.val, &ctl, 4);
+	read_guest_context(vgpu, ring_context_gpa, ctx_ctrl.val, &ctx_ctl, 4);
 
 	INIT_LIST_HEAD(&workload->list);
 	INIT_LIST_HEAD(&workload->shadow_bb);
@@ -693,10 +686,10 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 	workload->emulate_schedule_in = emulate_schedule_in;
 
 	if (ring_id == RCS) {
-		intel_gvt_hypervisor_read_gpa(vgpu, ring_context_gpa +
-			RING_CTX_OFF(bb_per_ctx_ptr.val), &per_ctx, 4);
-		intel_gvt_hypervisor_read_gpa(vgpu, ring_context_gpa +
-			RING_CTX_OFF(rcs_indirect_ctx.val), &indirect_ctx, 4);
+		read_guest_context(vgpu, ring_context_gpa, bb_per_ctx_ptr.val,
+				   &per_ctx, 4);
+		read_guest_context(vgpu, ring_context_gpa, rcs_indirect_ctx.val,
+				   &indirect_ctx, 4);
 
 		workload->wa_ctx.indirect_ctx.guest_gma =
 			indirect_ctx & INDIRECT_CTX_ADDR_MASK;
