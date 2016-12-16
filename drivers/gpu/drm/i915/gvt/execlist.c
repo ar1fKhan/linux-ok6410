@@ -42,8 +42,6 @@
 #define execlist_ring_mmio(gvt, ring_id, offset) \
 	(gvt->dev_priv->engine[ring_id]->mmio_base + (offset))
 
-#define valid_context(ctx) ((ctx)->valid)
-
 static inline bool same_context(struct execlist_ctx_descriptor_format *a,
 				struct execlist_ctx_descriptor_format *b)
 {
@@ -191,7 +189,7 @@ static int emulate_execlist_ctx_schedule_out(
 	}
 
 	/* ctx1 is valid, ctx0/ctx is scheduled-out -> element switch */
-	if (valid_context(ctx1) && same_context(ctx0, ctx)) {
+	if (ctx1->valid && same_context(ctx0, ctx)) {
 		gvt_dbg_el("ctx 1 valid, ctx/ctx 0 is scheduled-out\n");
 
 		execlist->running_context = ctx1;
@@ -210,8 +208,8 @@ static int emulate_execlist_ctx_schedule_out(
 		 *	active-to-idle if there is *no* pending execlist
 		 *	context-complete if there *is* pending execlist
 		 */
-	} else if ((!valid_context(ctx1) && same_context(ctx0, ctx))
-			|| (valid_context(ctx1) && same_context(ctx1, ctx))) {
+	} else if ((!ctx1->valid && same_context(ctx0, ctx))
+			|| (ctx1->valid && same_context(ctx1, ctx))) {
 		gvt_dbg_el("need to switch virtual execlist slot\n");
 
 		switch_virtual_execlist_slot(execlist);
@@ -326,10 +324,10 @@ static int emulate_execlist_schedule_in(struct intel_vgpu_execlist *execlist,
 	 *	   ctx0 == new execlist ctx[0]
 	 * ----> lite-restore + preempted
 	 */
-	if ((valid_context(ctx1) && same_context(ctx1, &slot->ctx[0]) &&
+	if ((ctx1->valid && same_context(ctx1, &slot->ctx[0]) &&
 		/* condition a */
 		(!same_context(ctx0, execlist->running_context))) ||
-			(!valid_context(ctx1) &&
+			(!ctx1->valid &&
 			 same_context(ctx0, &slot->ctx[0]))) { /* condition b */
 		gvt_dbg_el("need to switch virtual execlist slot\n");
 
