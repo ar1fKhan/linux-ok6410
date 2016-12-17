@@ -533,7 +533,7 @@ static int complete_execlist_workload(struct intel_vgpu_workload *workload)
 	struct intel_vgpu *vgpu = engine_to_vgpu(engine);
 	struct intel_vgpu_execlist *execlist = &engine->execlist;
 	struct intel_vgpu_workload *next_workload;
-	struct list_head *next = workload_q_head(vgpu, engine->id)->next;
+	struct list_head *next = engine->workload_q_head.next;
 	bool lite_restore = false;
 	int ret;
 
@@ -546,7 +546,7 @@ static int complete_execlist_workload(struct intel_vgpu_workload *workload)
 	if (workload->status || vgpu->resetting)
 		goto out;
 
-	if (!list_empty(workload_q_head(vgpu, engine->id))) {
+	if (!list_empty(&engine->workload_q_head)) {
 		struct execlist_ctx_descriptor_format *this_desc, *next_desc;
 
 		next_workload = container_of(next,
@@ -628,7 +628,7 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 		struct execlist_ctx_descriptor_format *desc,
 		bool emulate_schedule_in)
 {
-	struct list_head *q = workload_q_head(vgpu, ring_id);
+	struct list_head *q = &vgpu->engine[ring_id].workload_q_head;
 	struct intel_vgpu_workload *last_workload;
 	struct intel_vgpu_workload *workload = NULL;
 	u64 ring_context_gpa;

@@ -115,9 +115,6 @@ struct intel_shadow_bb_entry {
 	void *bb_start_cmd_va;
 };
 
-#define workload_q_head(vgpu, ring_id) \
-	(&(vgpu->engine[ring_id].workload_q_head))
-
 void intel_gvt_queue_workload(struct intel_vgpu_workload *workload);
 
 int intel_gvt_init_workload_scheduler(struct intel_gvt *gvt);

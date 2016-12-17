@@ -223,6 +223,7 @@ static struct intel_vgpu_workload *pick_next_workload(
 		struct intel_gvt *gvt, int ring_id)
 {
 	struct intel_gvt_workload_scheduler *scheduler = &gvt->scheduler;
+	struct intel_vgpu *current_vgpu = scheduler->current_vgpu;
 	struct intel_vgpu_workload *workload = NULL;
 
 	mutex_lock(&gvt->lock);
@@ -231,7 +232,7 @@ static struct intel_vgpu_workload *pick_next_workload(
 	 * no current vgpu / will be scheduled out / no workload
 	 * bail out
 	 */
-	if (!scheduler->current_vgpu) {
+	if (!current_vgpu) {
 		gvt_dbg_sched("ring id %d stop - no current vgpu\n", ring_id);
 		goto out;
 	}
@@ -241,20 +242,20 @@ static struct intel_vgpu_workload *pick_next_workload(
 		goto out;
 	}
 
-	if (list_empty(workload_q_head(scheduler->current_vgpu, ring_id))) {
+	if (list_empty(&current_vgpu->engine[ring_id].workload_q_head)) {
 		gvt_dbg_sched("ring id %d stop - no available workload\n",
-				ring_id);
+			      ring_id);
 		goto out;
 	}
 
+	workload = scheduler->current_workload[ring_id];
 	/*
 	 * still have current workload, maybe the workload disptacher
 	 * fail to submit it for some reason, resubmit it.
 	 */
-	if (scheduler->current_workload[ring_id]) {
-		workload = scheduler->current_workload[ring_id];
+	if (workload) {
 		gvt_dbg_sched("ring id %d still have current workload %p\n",
-				ring_id, workload);
+			      ring_id, workload);
 		goto out;
 	}
 
@@ -265,7 +266,7 @@ static struct intel_vgpu_workload *pick_next_workload(
 	 * schedule out a vgpu.
 	 */
 	scheduler->current_workload[ring_id] = container_of(
-			workload_q_head(scheduler->current_vgpu, ring_id)->next,
+			current_vgpu->engine[ring_id].workload_q_head.next,
 			struct intel_vgpu_workload, list);
 
 	workload = scheduler->current_workload[ring_id];
