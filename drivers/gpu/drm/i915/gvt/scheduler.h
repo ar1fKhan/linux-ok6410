@@ -74,8 +74,7 @@ struct intel_shadow_wa_ctx {
 };
 
 struct intel_vgpu_workload {
-	struct intel_vgpu *vgpu;
-	int ring_id;
+	struct intel_vgpu_engine *engine;
 	struct drm_i915_gem_request *req;
 	/* if this workload has been dispatched to i915? */
 	bool dispatched;
@@ -120,10 +119,10 @@ struct intel_shadow_bb_entry {
 	(&(vgpu->engine[ring_id].workload_q_head))
 
 #define queue_workload(workload) do { \
+	struct intel_vgpu *_vgpu = engine_to_vgpu(workload->engine); \
 	list_add_tail(&workload->list, \
-	workload_q_head(workload->vgpu, workload->ring_id)); \
-	wake_up(&workload->vgpu->gvt-> \
-	scheduler.waitq[workload->ring_id]); \
+	workload_q_head(_vgpu, workload->engine->id)); \
+	wake_up(&_vgpu->gvt->scheduler.waitq[workload->engine->id]); \
 } while (0)
 
 int intel_gvt_init_workload_scheduler(struct intel_gvt *gvt);

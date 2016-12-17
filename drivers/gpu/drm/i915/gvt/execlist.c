@@ -363,9 +363,11 @@ static int emulate_execlist_schedule_in(struct intel_vgpu_execlist *execlist,
 
 static void free_workload(struct intel_vgpu_workload *workload)
 {
+	struct intel_vgpu *vgpu = engine_to_vgpu(workload->engine);
+
 	intel_vgpu_unpin_mm(workload->shadow_mm);
 	intel_gvt_mm_unreference(workload->shadow_mm);
-	kmem_cache_free(workload->vgpu->workload_cachep, workload);
+	kmem_cache_free(vgpu->workload_cachep, workload);
 }
 
 #define get_desc_from_elsp_dwords(ed, i) \
@@ -392,7 +394,8 @@ static int set_gma_to_bb_cmd(struct intel_shadow_bb_entry *entry_obj,
 
 static void prepare_shadow_batch_buffer(struct intel_vgpu_workload *workload)
 {
-	int gmadr_bytes = workload->vgpu->gvt->device_info.gmadr_bytes_in_cmd;
+	struct intel_vgpu *vgpu = engine_to_vgpu(workload->engine);
+	int gmadr_bytes = vgpu->gvt->device_info.gmadr_bytes_in_cmd;
 
 	/* pin the gem object to ggtt */
 	if (!list_empty(&workload->shadow_bb)) {
@@ -428,11 +431,10 @@ static void prepare_shadow_batch_buffer(struct intel_vgpu_workload *workload)
 
 static int update_wa_ctx_2_shadow_ctx(struct intel_shadow_wa_ctx *wa_ctx)
 {
-	int ring_id = wa_ctx->workload->ring_id;
-	struct i915_gem_context *shadow_ctx =
-		wa_ctx->workload->vgpu->shadow_ctx;
+	struct intel_vgpu *vgpu = engine_to_vgpu(wa_ctx->workload->engine);
+	struct i915_gem_context *shadow_ctx = vgpu->shadow_ctx;
 	struct drm_i915_gem_object *ctx_obj =
-		shadow_ctx->engine[ring_id].state->obj;
+		shadow_ctx->engine[wa_ctx->workload->engine->id].state->obj;
 	struct execlist_ring_context *shadow_ring_context;
 	struct page *page;
 
@@ -482,13 +484,12 @@ static void prepare_shadow_wa_ctx(struct intel_shadow_wa_ctx *wa_ctx)
 
 static int prepare_execlist_workload(struct intel_vgpu_workload *workload)
 {
-	struct intel_vgpu *vgpu = workload->vgpu;
+	struct intel_vgpu *vgpu = engine_to_vgpu(workload->engine);
 	struct execlist_ctx_descriptor_format ctx[2];
-	int ring_id = workload->ring_id;
 
 	intel_vgpu_pin_mm(workload->shadow_mm);
-	intel_vgpu_sync_oos_pages(workload->vgpu);
-	intel_vgpu_flush_post_shadow(workload->vgpu);
+	intel_vgpu_sync_oos_pages(vgpu);
+	intel_vgpu_flush_post_shadow(vgpu);
 	prepare_shadow_batch_buffer(workload);
 	prepare_shadow_wa_ctx(&workload->wa_ctx);
 
@@ -498,7 +499,7 @@ static int prepare_execlist_workload(struct intel_vgpu_workload *workload)
 	ctx[0] = *get_desc_from_elsp_dwords(&workload->elsp_dwords, 1);
 	ctx[1] = *get_desc_from_elsp_dwords(&workload->elsp_dwords, 0);
 
-	return emulate_execlist_schedule_in(&vgpu->engine[ring_id].execlist, ctx);
+	return emulate_execlist_schedule_in(&workload->engine->execlist, ctx);
 }
 
 static void release_shadow_batch_buffer(struct intel_vgpu_workload *workload)
@@ -532,11 +533,11 @@ static void release_shadow_wa_ctx(struct intel_shadow_wa_ctx *wa_ctx)
 
 static int complete_execlist_workload(struct intel_vgpu_workload *workload)
 {
-	struct intel_vgpu *vgpu = workload->vgpu;
-	struct intel_vgpu_execlist *execlist =
-		&vgpu->engine[workload->ring_id].execlist;
+	struct intel_vgpu_engine *engine = workload->engine;
+	struct intel_vgpu *vgpu = engine_to_vgpu(engine);
+	struct intel_vgpu_execlist *execlist = &engine->execlist;
 	struct intel_vgpu_workload *next_workload;
-	struct list_head *next = workload_q_head(vgpu, workload->ring_id)->next;
+	struct list_head *next = workload_q_head(vgpu, engine->id)->next;
 	bool lite_restore = false;
 	int ret;
 
@@ -549,7 +550,7 @@ static int complete_execlist_workload(struct intel_vgpu_workload *workload)
 	if (workload->status || vgpu->resetting)
 		goto out;
 
-	if (!list_empty(workload_q_head(vgpu, workload->ring_id))) {
+	if (!list_empty(workload_q_head(vgpu, engine->id))) {
 		struct execlist_ctx_descriptor_format *this_desc, *next_desc;
 
 		next_workload = container_of(next,
@@ -594,6 +595,7 @@ static void read_guest_pdps(struct intel_vgpu *vgpu,
 
 static int prepare_mm(struct intel_vgpu_workload *workload)
 {
+	struct intel_vgpu *vgpu = engine_to_vgpu(workload->engine);
 	struct execlist_ctx_descriptor_format *desc = &workload->ctx_desc;
 	struct intel_vgpu_mm *mm;
 	int page_table_level;
@@ -608,14 +610,14 @@ static int prepare_mm(struct intel_vgpu_workload *workload)
 		return -EINVAL;
 	}
 
-	read_guest_pdps(workload->vgpu, workload->ring_context_gpa, pdp);
+	read_guest_pdps(vgpu, workload->ring_context_gpa, pdp);
 
-	mm = intel_vgpu_find_ppgtt_mm(workload->vgpu, page_table_level, pdp);
+	mm = intel_vgpu_find_ppgtt_mm(vgpu, page_table_level, pdp);
 	if (mm) {
 		intel_gvt_mm_reference(mm);
 	} else {
 
-		mm = intel_vgpu_create_mm(workload->vgpu, INTEL_GVT_MM_PPGTT,
+		mm = intel_vgpu_create_mm(vgpu, INTEL_GVT_MM_PPGTT,
 				pdp, page_table_level, 0);
 		if (IS_ERR(mm)) {
 			gvt_err("fail to create mm object.\n");
@@ -681,8 +683,7 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 	init_waitqueue_head(&workload->shadow_ctx_status_wq);
 	atomic_set(&workload->shadow_ctx_active, 0);
 
-	workload->vgpu = vgpu;
-	workload->ring_id = ring_id;
+	workload->engine = &vgpu->engine[ring_id];
 	workload->ctx_desc = *desc;
 	workload->ring_context_gpa = ring_context_gpa;
 	workload->rb_head = head;

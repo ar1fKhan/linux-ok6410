@@ -2528,8 +2528,8 @@ static int scan_workload(struct intel_vgpu_workload *workload)
 
 	s.buf_type = RING_BUFFER_INSTRUCTION;
 	s.buf_addr_type = GTT_BUFFER;
-	s.vgpu = workload->vgpu;
-	s.ring_id = workload->ring_id;
+	s.vgpu = engine_to_vgpu(workload->engine);
+	s.ring_id = workload->engine->id;
 	s.ring_start = workload->rb_start;
 	s.ring_size = _RING_CTL_BUF_SIZE(workload->rb_ctl);
 	s.ring_head = gma_head;
@@ -2537,7 +2537,7 @@ static int scan_workload(struct intel_vgpu_workload *workload)
 	s.rb_va = workload->shadow_ring_buffer_va;
 	s.workload = workload;
 
-	if ((bypass_scan_mask & (1 << workload->ring_id)) ||
+	if ((bypass_scan_mask & (1 << workload->engine->id)) ||
 		gma_head == gma_tail)
 		return 0;
 
@@ -2572,8 +2572,8 @@ static int scan_wa_ctx(struct intel_shadow_wa_ctx *wa_ctx)
 
 	s.buf_type = RING_BUFFER_INSTRUCTION;
 	s.buf_addr_type = GTT_BUFFER;
-	s.vgpu = wa_ctx->workload->vgpu;
-	s.ring_id = wa_ctx->workload->ring_id;
+	s.vgpu = engine_to_vgpu(wa_ctx->workload->engine);
+	s.ring_id = wa_ctx->workload->engine->id;
 	s.ring_start = wa_ctx->indirect_ctx.guest_gma;
 	s.ring_size = ring_size;
 	s.ring_head = gma_head;
@@ -2593,8 +2593,8 @@ out:
 
 static int shadow_workload_ring_buffer(struct intel_vgpu_workload *workload)
 {
-	struct intel_vgpu *vgpu = workload->vgpu;
-	int ring_id = workload->ring_id;
+	struct intel_vgpu *vgpu = engine_to_vgpu(workload->engine);
+	int ring_id = workload->engine->id;
 	struct i915_gem_context *shadow_ctx = vgpu->shadow_ctx;
 	struct intel_ring *ring = shadow_ctx->engine[ring_id].ring;
 	unsigned long gma_head, gma_tail, gma_top, guest_rb_size;
@@ -2665,13 +2665,14 @@ int intel_gvt_scan_and_shadow_workload(struct intel_vgpu_workload *workload)
 
 static int shadow_indirect_ctx(struct intel_shadow_wa_ctx *wa_ctx)
 {
+	struct intel_vgpu *vgpu = engine_to_vgpu(wa_ctx->workload->engine);
 	int ctx_size = wa_ctx->indirect_ctx.size;
 	unsigned long guest_gma = wa_ctx->indirect_ctx.guest_gma;
 	struct drm_i915_gem_object *obj;
 	int ret = 0;
 	void *map;
 
-	obj = i915_gem_object_create(wa_ctx->workload->vgpu->gvt->dev_priv,
+	obj = i915_gem_object_create(vgpu->gvt->dev_priv,
 				     roundup(ctx_size + CACHELINE_BYTES,
 					     PAGE_SIZE));
 	if (IS_ERR(obj))
@@ -2691,10 +2692,8 @@ static int shadow_indirect_ctx(struct intel_shadow_wa_ctx *wa_ctx)
 		goto unmap_src;
 	}
 
-	ret = copy_gma_to_hva(wa_ctx->workload->vgpu,
-				wa_ctx->workload->vgpu->gtt.ggtt_mm,
-				guest_gma, guest_gma + ctx_size,
-				map);
+	ret = copy_gma_to_hva(vgpu, vgpu->gtt.ggtt_mm, guest_gma,
+			      guest_gma + ctx_size, map);
 	if (ret) {
 		gvt_err("fail to copy guest indirect ctx\n");
 		goto unmap_src;
