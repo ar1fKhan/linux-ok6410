@@ -373,9 +373,6 @@ static void free_workload(struct intel_vgpu_workload *workload)
 #define get_desc_from_elsp_dwords(ed, i) \
 	((struct execlist_ctx_descriptor_format *)&((ed)->data[i * 2]))
 
-
-#define BATCH_BUFFER_ADDR_MASK ((1UL << 32) - (1U << 2))
-#define BATCH_BUFFER_ADDR_HIGH_MASK ((1UL << 16) - (1U))
 static int set_gma_to_bb_cmd(struct intel_shadow_bb_entry *entry_obj,
 			     unsigned long add, int gmadr_bytes)
 {
@@ -383,11 +380,10 @@ static int set_gma_to_bb_cmd(struct intel_shadow_bb_entry *entry_obj,
 		return -1;
 
 	*((u32 *)(entry_obj->bb_start_cmd_va + (1 << 2))) = add &
-		BATCH_BUFFER_ADDR_MASK;
-	if (gmadr_bytes == 8) {
-		*((u32 *)(entry_obj->bb_start_cmd_va + (2 << 2))) =
-			add & BATCH_BUFFER_ADDR_HIGH_MASK;
-	}
+						((1UL << 32) - (1U << 2));
+	if (gmadr_bytes == 8)
+		*((u32 *)(entry_obj->bb_start_cmd_va + (2 << 2))) = add &
+						((1UL << 16) - (1U));
 
 	return 0;
 }
