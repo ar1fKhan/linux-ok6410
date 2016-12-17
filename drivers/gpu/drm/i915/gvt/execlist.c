@@ -48,21 +48,30 @@ static inline bool same_context(struct execlist_ctx_descriptor_format *a,
 	return ((a->context_id == b->context_id) && (a->lrca == b->lrca));
 }
 
-static int context_switch_events[] = {
-	[RCS] = RCS_AS_CONTEXT_SWITCH,
-	[BCS] = BCS_AS_CONTEXT_SWITCH,
-	[VCS] = VCS_AS_CONTEXT_SWITCH,
-	[VCS2] = VCS2_AS_CONTEXT_SWITCH,
-	[VECS] = VECS_AS_CONTEXT_SWITCH,
-};
-
 static int ring_id_to_context_switch_event(int ring_id)
 {
-	if (WARN_ON(ring_id < RCS &&
-	    ring_id > ARRAY_SIZE(context_switch_events)))
-		return -EINVAL;
+	int event = -EINVAL;
 
-	return context_switch_events[ring_id];
+	switch (ring_id) {
+	case RCS:
+		event = RCS_AS_CONTEXT_SWITCH;
+		break;
+	case BCS:
+		event = BCS_AS_CONTEXT_SWITCH;
+		break;
+	case VCS:
+		event = VCS_AS_CONTEXT_SWITCH;
+		break;
+	case VCS2:
+		event = VCS2_AS_CONTEXT_SWITCH;
+		break;
+	case VECS:
+		event = VECS_AS_CONTEXT_SWITCH;
+		break;
+	default:
+		WARN_ON(1);
+	}
+	return event;
 }
 
 static void switch_virtual_execlist_slot(struct intel_vgpu_execlist *execlist)
