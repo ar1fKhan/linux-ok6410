@@ -365,7 +365,7 @@ static void free_workload(struct intel_vgpu_workload *workload)
 {
 	intel_vgpu_unpin_mm(workload->shadow_mm);
 	intel_gvt_mm_unreference(workload->shadow_mm);
-	kmem_cache_free(workload->vgpu->workloads, workload);
+	kmem_cache_free(workload->vgpu->workload_cachep, workload);
 }
 
 #define get_desc_from_elsp_dwords(ed, i) \
@@ -666,7 +666,7 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 
 	gvt_dbg_el("ring id %d begin a new workload\n", ring_id);
 
-	workload = kmem_cache_zalloc(vgpu->workloads, GFP_KERNEL);
+	workload = kmem_cache_zalloc(vgpu->workload_cachep, GFP_KERNEL);
 	if (!workload)
 		return -ENOMEM;
 
@@ -721,7 +721,7 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 
 	ret = prepare_mm(workload);
 	if (ret) {
-		kmem_cache_free(vgpu->workloads, workload);
+		kmem_cache_free(vgpu->workload_cachep, workload);
 		return ret;
 	}
 
@@ -790,7 +790,7 @@ static void init_vgpu_execlist(struct intel_vgpu *vgpu, int ring_id)
 
 void intel_vgpu_clean_execlist(struct intel_vgpu *vgpu)
 {
-	kmem_cache_destroy(vgpu->workloads);
+	kmem_cache_destroy(vgpu->workload_cachep);
 }
 
 int intel_vgpu_init_execlist(struct intel_vgpu *vgpu)
@@ -804,11 +804,11 @@ int intel_vgpu_init_execlist(struct intel_vgpu *vgpu)
 		INIT_LIST_HEAD(&vgpu->workload_q_head[i]);
 	}
 
-	vgpu->workloads = kmem_cache_create("gvt_workload",
+	vgpu->workload_cachep = kmem_cache_create("gvt_workload",
 				sizeof(struct intel_vgpu_workload), 0,
 				SLAB_HWCACHE_ALIGN, NULL);
 
-	if (!vgpu->workloads)
+	if (!vgpu->workload_cachep)
 		return -ENOMEM;
 
 	return 0;
