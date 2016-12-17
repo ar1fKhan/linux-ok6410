@@ -722,7 +722,7 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 		return ret;
 	}
 
-	queue_workload(workload);
+	intel_gvt_queue_workload(workload);
 	return 0;
 }
 

@@ -478,6 +478,14 @@ complete:
 	return 0;
 }
 
+void intel_gvt_queue_workload(struct intel_vgpu_workload *workload)
+{
+	struct intel_vgpu *vgpu = engine_to_vgpu(workload->engine);
+
+	list_add_tail(&workload->list, &workload->engine->workload_q_head);
+	wake_up(&vgpu->gvt->scheduler.waitq[workload->engine->id]);
+}
+
 void intel_gvt_wait_vgpu_idle(struct intel_vgpu *vgpu)
 {
 	struct intel_gvt *gvt = vgpu->gvt;
