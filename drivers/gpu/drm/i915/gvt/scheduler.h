@@ -117,7 +117,7 @@ struct intel_shadow_bb_entry {
 };
 
 #define workload_q_head(vgpu, ring_id) \
-	(&(vgpu->workload_q_head[ring_id]))
+	(&(vgpu->engine[ring_id].workload_q_head))
 
 #define queue_workload(workload) do { \
 	list_add_tail(&workload->list, \

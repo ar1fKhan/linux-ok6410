@@ -171,8 +171,6 @@ struct intel_vgpu_execlist {
 	struct intel_vgpu_execlist_slot *running_slot;
 	struct intel_vgpu_execlist_slot *pending_slot;
 	struct execlist_ctx_descriptor_format *running_context;
-	int ring_id;
-	struct intel_vgpu *vgpu;
 	struct intel_vgpu_elsp_dwords elsp_dwords;
 };
 

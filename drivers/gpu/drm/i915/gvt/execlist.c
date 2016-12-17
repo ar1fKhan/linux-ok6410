@@ -99,11 +99,11 @@ static void emulate_execlist_status(struct intel_vgpu_execlist *execlist)
 	struct intel_vgpu_execlist_slot *running = execlist->running_slot;
 	struct intel_vgpu_execlist_slot *pending = execlist->pending_slot;
 	struct execlist_ctx_descriptor_format *desc = execlist->running_context;
-	struct intel_vgpu *vgpu = execlist->vgpu;
+	struct intel_vgpu_engine *engine = execlist_to_engine(execlist);
+	struct intel_vgpu *vgpu = engine_to_vgpu(engine);
 	struct execlist_status_format status;
-	int ring_id = execlist->ring_id;
 	u32 status_reg = execlist_ring_mmio(vgpu->gvt,
-					    ring_id, _EL_OFFSET_STATUS);
+					    engine->id, _EL_OFFSET_STATUS);
 
 	status.ldw = vgpu_vreg(vgpu, status_reg);
 	status.udw = vgpu_vreg(vgpu, status_reg + 4);
@@ -135,15 +135,15 @@ static void emulate_csb_update(struct intel_vgpu_execlist *execlist,
 		struct execlist_context_status_format *status,
 		bool trigger_interrupt_later)
 {
-	struct intel_vgpu *vgpu = execlist->vgpu;
-	int ring_id = execlist->ring_id;
+	struct intel_vgpu_engine *engine = execlist_to_engine(execlist);
+	struct intel_vgpu *vgpu = engine_to_vgpu(engine);
 	struct execlist_context_status_pointer_format ctx_status_ptr;
 	u32 write_pointer;
 	u32 ctx_status_ptr_reg, ctx_status_buf_reg, offset;
 
-	ctx_status_ptr_reg = execlist_ring_mmio(vgpu->gvt, ring_id,
+	ctx_status_ptr_reg = execlist_ring_mmio(vgpu->gvt, engine->id,
 						_EL_OFFSET_STATUS_PTR);
-	ctx_status_buf_reg = execlist_ring_mmio(vgpu->gvt, ring_id,
+	ctx_status_buf_reg = execlist_ring_mmio(vgpu->gvt, engine->id,
 						_EL_OFFSET_STATUS_BUF);
 
 	ctx_status_ptr.dw = vgpu_vreg(vgpu, ctx_status_ptr_reg);
@@ -172,7 +172,7 @@ static void emulate_csb_update(struct intel_vgpu_execlist *execlist,
 		return;
 
 	intel_vgpu_trigger_virtual_event(vgpu,
-			ring_id_to_context_switch_event(execlist->ring_id));
+			ring_id_to_context_switch_event(engine->id));
 }
 
 static int emulate_execlist_ctx_schedule_out(
@@ -251,9 +251,9 @@ static int emulate_execlist_ctx_schedule_out(
 static struct intel_vgpu_execlist_slot *get_next_execlist_slot(
 		struct intel_vgpu_execlist *execlist)
 {
-	struct intel_vgpu *vgpu = execlist->vgpu;
-	int ring_id = execlist->ring_id;
-	u32 status_reg = execlist_ring_mmio(vgpu->gvt, ring_id,
+	struct intel_vgpu_engine *engine = execlist_to_engine(execlist);
+	struct intel_vgpu *vgpu = engine_to_vgpu(engine);
+	u32 status_reg = execlist_ring_mmio(vgpu->gvt, engine->id,
 					    _EL_OFFSET_STATUS);
 	struct execlist_status_format status;
 
@@ -498,7 +498,7 @@ static int prepare_execlist_workload(struct intel_vgpu_workload *workload)
 	ctx[0] = *get_desc_from_elsp_dwords(&workload->elsp_dwords, 1);
 	ctx[1] = *get_desc_from_elsp_dwords(&workload->elsp_dwords, 0);
 
-	return emulate_execlist_schedule_in(&vgpu->execlist[ring_id], ctx);
+	return emulate_execlist_schedule_in(&vgpu->engine[ring_id].execlist, ctx);
 }
 
 static void release_shadow_batch_buffer(struct intel_vgpu_workload *workload)
@@ -534,7 +534,7 @@ static int complete_execlist_workload(struct intel_vgpu_workload *workload)
 {
 	struct intel_vgpu *vgpu = workload->vgpu;
 	struct intel_vgpu_execlist *execlist =
-		&vgpu->execlist[workload->ring_id];
+		&vgpu->engine[workload->ring_id].execlist;
 	struct intel_vgpu_workload *next_workload;
 	struct list_head *next = workload_q_head(vgpu, workload->ring_id)->next;
 	bool lite_restore = false;
@@ -713,7 +713,7 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 	}
 
 	if (emulate_schedule_in)
-		workload->elsp_dwords = vgpu->execlist[ring_id].elsp_dwords;
+		workload->elsp_dwords = vgpu->engine[ring_id].execlist.elsp_dwords;
 
 	gvt_dbg_el("workload %p ring id %d head %x tail %x start %x ctl %x "
 		   "emulate_schedule_in %d\n", workload, ring_id, head, tail,
@@ -731,7 +731,7 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 
 int intel_vgpu_submit_execlist(struct intel_vgpu *vgpu, int ring_id)
 {
-	struct intel_vgpu_execlist *execlist = &vgpu->execlist[ring_id];
+	struct intel_vgpu_execlist *execlist = &vgpu->engine[ring_id].execlist;
 	struct execlist_ctx_descriptor_format desc[2];
 	int i, ret;
 
@@ -769,14 +769,12 @@ int intel_vgpu_submit_execlist(struct intel_vgpu *vgpu, int ring_id)
 
 static void init_vgpu_execlist(struct intel_vgpu *vgpu, int ring_id)
 {
-	struct intel_vgpu_execlist *execlist = &vgpu->execlist[ring_id];
+	struct intel_vgpu_execlist *execlist = &vgpu->engine[ring_id].execlist;
 	struct execlist_context_status_pointer_format ctx_status_ptr;
 	u32 ctx_status_ptr_reg;
 
 	memset(execlist, 0, sizeof(*execlist));
 
-	execlist->vgpu = vgpu;
-	execlist->ring_id = ring_id;
 	execlist->slot[0].index = 0;
 	execlist->slot[1].index = 1;
 
@@ -800,8 +798,9 @@ int intel_vgpu_init_execlist(struct intel_vgpu *vgpu)
 
 	/* each ring has a virtual execlist engine */
 	for_each_engine(engine, vgpu->gvt->dev_priv, i) {
+		vgpu->engine[i].id = i;
 		init_vgpu_execlist(vgpu, i);
-		INIT_LIST_HEAD(&vgpu->workload_q_head[i]);
+		INIT_LIST_HEAD(&vgpu->engine[i].workload_q_head);
 	}
 
 	vgpu->workload_cachep = kmem_cache_create("gvt_workload",
@@ -825,7 +824,7 @@ void intel_vgpu_reset_execlist(struct intel_vgpu *vgpu,
 	for_each_engine_masked(engine, dev_priv, engine_mask, tmp) {
 		/* free the unsubmited workload in the queue */
 		list_for_each_entry_safe(pos, n,
-			&vgpu->workload_q_head[engine->id], list) {
+			&vgpu->engine[engine->id].workload_q_head, list) {
 			list_del_init(&pos->list);
 			free_workload(pos);
 		}

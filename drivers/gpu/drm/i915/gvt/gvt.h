@@ -138,6 +138,12 @@ struct intel_vgpu_display {
 	struct intel_vgpu_sbi sbi;
 };
 
+struct intel_vgpu_engine {
+	enum intel_engine_id id;
+	struct intel_vgpu_execlist execlist;
+	struct list_head workload_q_head;
+};
+
 struct intel_vgpu {
 	struct intel_gvt *gvt;
 	int id;
@@ -154,8 +160,7 @@ struct intel_vgpu {
 	struct intel_vgpu_gtt gtt;
 	struct intel_vgpu_opregion opregion;
 	struct intel_vgpu_display display;
-	struct intel_vgpu_execlist execlist[I915_NUM_ENGINES];
-	struct list_head workload_q_head[I915_NUM_ENGINES];
+	struct intel_vgpu_engine engine[I915_NUM_ENGINES];
 	struct kmem_cache *workload_cachep;
 	atomic_t running_workload_num;
 	DECLARE_BITMAP(tlb_handle_pending, I915_NUM_ENGINES);
@@ -179,6 +184,11 @@ struct intel_vgpu {
 	} vdev;
 #endif
 };
+
+#define execlist_to_engine(e) \
+	container_of(e, struct intel_vgpu_engine, execlist)
+#define engine_to_vgpu(e) \
+	container_of(e, struct intel_vgpu, engine[e->id])
 
 struct intel_gvt_gm {
 	unsigned long vgpu_allocated_low_gm_size;
